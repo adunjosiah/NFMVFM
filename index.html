@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+		#uber-button {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            width: 150px;
+            height: 30px;
+            background-color: rgb(51, 51, 51);
+            color: white;
+            border: none;
+            cursor: pointer;
+            z-index: 1000;
+            font-size: 15px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            font-family:Montserrat, sans-serif;
+            border-radius: 10px;
+        }
+        
+        #uber-button:hover {
+            opacity: 0.8;
+        }
+        
+        #uber-button::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 100px;
+            background-color: rgba(255, 255, 255, 0.8);
+            color: rgb(0, 0, 0);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0s;
+            margin-bottom: 5px;
+        }
+        
+        #uber-button:hover::after {
+            opacity: 1;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <a id="uber-button" href="https://forms.gle/o4Tkzesevh1P1CTk9" target="_blank" title="Tell us what you think">Share Feedback</a>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/Revisedfairmarketvalue_4.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: '#ffff00',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: '#ffff00',
+                fillOpacity: 1
+              });
+            }
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[5.899235192752184,2.0115835949726257],[7.573285995242886,4.949396583317324]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank" &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org"');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // add class to format popup if it contains media
+		function addClassToPopupIfMedia(content, popup) {
+			var tempDiv = document.createElement('div');
+			tempDiv.innerHTML = content;
+			if (tempDiv.querySelector('td img')) {
+				popup._contentNode.classList.add('media');
+					// Delay to force the redraw
+					setTimeout(function() {
+						popup.update();
+					}, 10);
+			} else {
+				popup._contentNode.classList.remove('media');
+			}
+		}
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_GoogleSatellite_0');
+        map.getPane('pane_GoogleSatellite_0').style.zIndex = 400;
+        var layer_GoogleSatellite_0 = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleSatellite_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.google.at/permissions/geoguidelines/attr-guide.html"',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 20
+        });
+        layer_GoogleSatellite_0;
+        map.addLayer(layer_GoogleSatellite_0);
+        map.createPane('pane_GoogleLabels_1');
+        map.getPane('pane_GoogleLabels_1').style.zIndex = 401;
+        var layer_GoogleLabels_1 = L.tileLayer('https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleLabels_1',
+            opacity: 1.0,
+            attribution: '<a href="https://www.google.at/permissions/geoguidelines/attr-guide.html"',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 20
+        });
+        layer_GoogleLabels_1;
+        map.addLayer(layer_GoogleLabels_1);
+        map.createPane('pane_GoogleRoad_2');
+        map.getPane('pane_GoogleRoad_2').style.zIndex = 402;
+        var layer_GoogleRoad_2 = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleRoad_2',
+            opacity: 1.0,
+            attribution: '<a href="https://www.google.at/permissions/geoguidelines/attr-guide.html"',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 20
+        });
+        layer_GoogleRoad_2;
+        map.addLayer(layer_GoogleRoad_2);
+        map.createPane('pane_OSMStandard_3');
+        map.getPane('pane_OSMStandard_3').style.zIndex = 403;
+        var layer_OSMStandard_3 = L.tileLayer('http://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OSMStandard_3',
+            opacity: 1.0,
+            attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors, CC-BY-SA</a>',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OSMStandard_3;
+        map.addLayer(layer_OSMStandard_3);
+        function pop_Revisedfairmarketvalue_4(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<div style="font-family:Montserrat, sans-serif;">' + '<table>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">LCDA</th>\
+                        <td class="visible-with-data" id="LCDA">' + (feature.properties['LCDA'] !== null ? autolinker.link(String(feature.properties['LCDA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">LGA</th>\
+                        <td class="visible-with-data" id="LGA">' + (feature.properties['LGA'] !== null ? autolinker.link(String(feature.properties['LGA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 13px; padding-top: 3px; padding-bottom: 3px;">PREVAILING LAND VALUE IN THE AREA</th>\
+                        <td class="visible-with-data" id="PREVAILI_1">' + (feature.properties['PREVAILI_1'] !== null ? autolinker.link(String(feature.properties['PREVAILI_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">DETACHED</th>\
+                        <td class="visible-with-data" id="DETACHED">' + (feature.properties['DETACHED'] !== null ? autolinker.link(String(feature.properties['DETACHED']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">SEMI-DETACHED</th>\
+                        <td class="visible-with-data" id="SEMI DET_1">' + (feature.properties['SEMI DET_1'] !== null ? autolinker.link(String(feature.properties['SEMI DET_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">TERRACE</th>\
+                        <td class="visible-with-data" id="TERRACE">' + (feature.properties['TERRACE'] !== null ? autolinker.link(String(feature.properties['TERRACE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">BUNGALLOW</th>\
+                        <td class="visible-with-data" id="BUNGALLO_1">' + (feature.properties['BUNGALLO_1'] !== null ? autolinker.link(String(feature.properties['BUNGALLO_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">TENEMENT</th>\
+                        <td class="visible-with-data" id="TENEMENT">' + (feature.properties['TENEMENT'] !== null ? autolinker.link(String(feature.properties['TENEMENT']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">STUDIO APARTMENT</th>\
+                        <td class="visible-with-data" id="STUDIO A_1">' + (feature.properties['STUDIO A_1'] !== null ? autolinker.link(String(feature.properties['STUDIO A_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">BLOCK OF FLATS</th>\
+                        <td class="visible-with-data" id="BLOCK OF_2">' + (feature.properties['BLOCK OF_2'] !== null ? autolinker.link(String(feature.properties['BLOCK OF_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row" style="padding-right: 10px; padding-top: 3px; padding-bottom: 3px;">4 BEDROOM FLAT</th>\
+                        <td>' + (feature.properties['4 BEDROO_1'] !== null ? autolinker.link(String(feature.properties['4 BEDROO_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Revisedfairmarketvalue_4_0() {
+            return {
+                pane: 'pane_Revisedfairmarketvalue_4',
+        rotationAngle: 0.0,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/Revisedfairmarketvalue_4.svg',
+            iconSize: [32.68, 32.68]
+        }),
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Revisedfairmarketvalue_4');
+        map.getPane('pane_Revisedfairmarketvalue_4').style.zIndex = 404;
+        map.getPane('pane_Revisedfairmarketvalue_4').style['mix-blend-mode'] = 'normal';
+        var layer_Revisedfairmarketvalue_4 = new L.geoJson(json_Revisedfairmarketvalue_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Revisedfairmarketvalue_4',
+            layerName: 'layer_Revisedfairmarketvalue_4',
+            pane: 'pane_Revisedfairmarketvalue_4',
+            onEachFeature: pop_Revisedfairmarketvalue_4,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_Revisedfairmarketvalue_4_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Revisedfairmarketvalue_4);
+        map.addLayer(layer_Revisedfairmarketvalue_4);
+        const url = {"Nominatim OSM": "https://nominatim.openstreetmap.org/search?format=geojson&addressdetails=1&",
+        "France BAN": "https://api-adresse.data.gouv.fr/search/?"}
+        var photonControl = L.control.photon({
+            url: url["Nominatim OSM"],
+            feedbackLabel: '',
+            position: 'topleft',
+            includePosition: true,
+            initial: true,
+            // resultsHandler: myHandler,
+        }).addTo(map);
+        photonControl._container.childNodes[0].style.borderRadius="10px"
+        // Create a variable to store the geoJSON data
+        var x = null;
+        // Create a variable to store the marker
+        var marker = null;
+        // Add an event listener to the Photon control to create a marker from the returned geoJSON data
+        var z = null;
+        photonControl.on('selected', function(e) {
+            console.log(photonControl.search.resultsContainer);
+            if (x != null) {
+                map.removeLayer(obj3.marker);
+                map.removeLayer(x);
+            }
+            obj2.gcd = e.choice;
+            x = L.geoJSON(obj2.gcd).addTo(map);
+            var label = typeof obj2.gcd.properties.label === 'undefined' ? obj2.gcd.properties.display_name : obj2.gcd.properties.label;
+            obj3.marker = L.marker(x.getLayers()[0].getLatLng()).bindPopup(label).addTo(map);
+            map.setView(x.getLayers()[0].getLatLng(), 17);
+            z = typeof e.choice.properties.label === 'undefined'? e.choice.properties.display_name : e.choice.properties.label;
+            console.log(e);
+            e.target.input.value = z;
+        });
+        var search = document.getElementsByClassName("leaflet-photon leaflet-control")[0];
+        search.classList.add("leaflet-control-search")
+        search.style.display = "flex";
+        search.style.backgroundColor="rgba(255,255,255,0.5)" 
+
+        
+        var button = document.createElement("div");
+        button.id = "gcd-button-control";
+        button.className = "gcd-gl-btn fa fa-search search-button";
+
+        
+        search.insertBefore(button, search.firstChild);
+        last = search.lastChild;
+        last.style.display = "none";
+        button.addEventListener("click", function (e) {
+            if (last.style.display === "none") {
+                last.style.display = "block";
+            } else {
+                last.style.display = "none";
+            }
+        });
+        var overlaysTree = [
+            {label: '<img src="legend/Revisedfairmarketvalue_4.png" /> Revised fair market value', layer: layer_Revisedfairmarketvalue_4},
+            {label: "OSM Standard", layer: layer_OSMStandard_3},
+            {label: "Google Road", layer: layer_GoogleRoad_2},
+            {label: "Google Labels", layer: layer_GoogleLabels_1},
+            {label: "Google Satellite", layer: layer_GoogleSatellite_0, radioGroup: 'bm' },]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        </script>
+    </body>
+</html>
